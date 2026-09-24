@@ -1648,18 +1648,16 @@
                 signature: signatureData
             };
             
-            const { error } = await supabaseClient
-                .from('visitor_registrations')
-                .insert({
-                    full_name: formData.nom,
-                    email: formData.email,
-                    address: formData.adresse,
-                    visit_purpose: formData.motif,
-                    visit_details: formData.motifDetails,
-                    arrival_at: new Date(formData.arrivee).toISOString(),
-                    planned_departure_at: new Date(formData.depart).toISOString(),
-                    signature_data: formData.signature
-                });
+            const { error } = await supabaseClient.rpc('submit_visitor_registration', {
+                p_full_name: formData.nom,
+                p_email: formData.email,
+                p_address: formData.adresse,
+                p_visit_purpose: formData.motif,
+                p_visit_details: formData.motifDetails,
+                p_arrival_at: new Date(formData.arrivee).toISOString(),
+                p_planned_departure_at: new Date(formData.depart).toISOString(),
+                p_signature_data: formData.signature
+            });
 
             spinner.classList.add('hidden');
             btn.disabled = false;
@@ -1716,24 +1714,6 @@
                 equipments: selectedEquipments
             };
             
-            const { data: request, error: requestError } = await supabaseClient
-                .from('ppe_requests')
-                .insert({
-                    full_name: formData.nom,
-                    company_name: formData.societe,
-                    email: formData.email,
-                    pickup_date: formData.dateRetrait
-                })
-                .select()
-                .single();
-
-            if (requestError) {
-                spinner.classList.add('hidden');
-                btn.disabled = false;
-                alert("La demande PPE a échoué : " + requestError.message);
-                return;
-            }
-
             const itemCodes = {
                 'Helmet': 'helmet',
                 'Safety Shoes': 'shoes',
@@ -1744,21 +1724,23 @@
             };
 
             const items = selectedEquipments.map((equipment) => ({
-                request_id: request.id,
                 item_code: itemCodes[equipment.item],
                 item_label: equipment.item,
                 size: equipment.size || null
             }));
 
-            const { error: itemsError } = await supabaseClient
-                .from('ppe_request_items')
-                .insert(items);
+            const { error: requestError } = await supabaseClient.rpc('submit_ppe_request', {
+                p_full_name: formData.nom,
+                p_company_name: formData.societe,
+                p_email: formData.email,
+                p_pickup_date: formData.dateRetrait,
+                p_items: items
+            });
 
-            if (itemsError) {
-                await supabaseClient.from('ppe_requests').delete().eq('id', request.id);
+            if (requestError) {
                 spinner.classList.add('hidden');
                 btn.disabled = false;
-                alert("Les équipements PPE n'ont pas pu être enregistrés : " + itemsError.message);
+                alert("La demande PPE a échoué : " + requestError.message);
                 return;
             }
 
