@@ -434,4 +434,83 @@ Le parcours final doit etre :
 6. Il signe avec la souris ou son telephone.
 7. Supabase enregistre la visite.
 8. Le service HSE peut consulter et traiter les donnees.
+
+## 17. Notification email pour les demandes PPE
+
+Lorsqu'une demande PPE est enregistree, Supabase peut appeler une Edge Function qui envoie automatiquement un email a :
+
+```text
+noureddine.bouchentouf@holcim.com
 ```
+
+Le code de la fonction se trouve dans :
+
+```text
+supabase/functions/notify-ppe-request/index.ts
+```
+
+La fonction utilise Resend pour l'envoi. La cle Resend ne doit jamais etre ajoutee dans `Index.html` ou dans GitHub.
+
+### Deployer la fonction
+
+Installer la CLI Supabase, se connecter puis executer depuis la racine du projet :
+
+```bash
+supabase login
+supabase link --project-ref ixpbkkitqfblzupwggnz
+supabase functions deploy notify-ppe-request
+```
+
+Configurer les secrets :
+
+```bash
+supabase secrets set RESEND_API_KEY=VOTRE_CLE_RESEND
+supabase secrets set NOTIFICATION_FROM="HSE School <noreply@votre-domaine.com>"
+```
+
+Pour la production, le domaine d'envoi doit etre verifie dans Resend. L'adresse de test `onboarding@resend.dev` peut servir uniquement pour un premier essai.
+
+### Creer le webhook Supabase
+
+Dans Supabase :
+
+1. Ouvrir **Database** puis **Webhooks**.
+2. Cliquer sur **Create a new webhook**.
+3. Choisir la table `ppe_requests`.
+4. Selectionner l'evenement `INSERT`.
+5. Choisir les evenements `INSERT` et `UPDATE`.
+6. Choisir la fonction `notify-ppe-request`.
+7. Enregistrer le webhook.
+
+Le flux devient :
+
+```text
+Formulaire PPE
+    -> submit_ppe_request()
+    -> ppe_requests
+    -> Webhook INSERT ou UPDATE
+    -> notify-ppe-request
+    -> Email a l'administrateur ou au visiteur
+```
+
+Pour une nouvelle demande (`INSERT`), l'email est envoye a M. BOUCHENTOUF. Pour une modification du statut (`UPDATE`), l'email est envoye a l'adresse du visiteur. Les mises a jour sans changement de statut sont ignorees.
+
+### Valider ou rejeter une demande
+
+Le statut initial est `pending`. Apres verification, M. BOUCHENTOUF peut modifier le statut dans Supabase **Table Editor**, ou executer :
+
+```sql
+UPDATE public.ppe_requests
+SET status = 'prepared', updated_at = CURRENT_TIMESTAMP
+WHERE id = 'ID_DE_LA_DEMANDE';
+```
+
+Pour rejeter ou annuler :
+
+```sql
+UPDATE public.ppe_requests
+SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+WHERE id = 'ID_DE_LA_DEMANDE';
+```
+
+Les valeurs autorisees sont `pending`, `prepared`, `collected` et `cancelled`.
